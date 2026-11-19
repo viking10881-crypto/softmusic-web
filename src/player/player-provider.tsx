@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
-import { absoluteUrl, api, ApiError, type Track } from '@/lib/api'
+import { absoluteUrl, api, isPodcast, resolvePlayable, type Track } from '@/lib/api'
+import { episodeProgress } from '@/podcasts/progress'
 import { loadYouTubeApi, YT_STATE, type YTPlayer } from '@/lib/youtube'
 
 export type PlayerStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error'
@@ -20,12 +21,16 @@ interface PlayerState {
   volume: number
   muted: boolean
   repeat: RepeatMode
+  /** Velocidad de reproducción. Solo se aplica a podcasts: la música suena siempre a 1×. */
+  rate: number
 }
 
 interface PlayerActions {
   playQueue(tracks: Track[], startIndex?: number): void
   playNext(track: Track): void
   addToQueue(track: Track): void
+  /** Sustituye lo que queda por sonar sin interrumpir la canción actual (radio). */
+  replaceUpcoming(tracks: Track[]): void
   removeFromQueue(index: number): void
   jumpTo(index: number): void
   toggle(): void
@@ -35,6 +40,9 @@ interface PlayerActions {
   setVolume(volume: number): void
   toggleMute(): void
   cycleRepeat(): void
+  setRate(rate: number): void
+  /** Avanza o retrocede unos segundos (podcasts: −15 / +30). */
+  skipBy(seconds: number): void
   /** El dock de YouTube registra aquí el elemento donde se monta el iframe visible. */
   registerYouTubeHost(el: HTMLDivElement | null): void
 }
@@ -50,6 +58,7 @@ const ActionsContext = createContext<PlayerActions | null>(null)
 const ProgressContext = createContext<Progress>({ currentTime: 0, duration: 0 })
 
 const VOLUME_KEY = 'softmusic.volume'
+const RATE_KEY = 'softmusic.podcast-rate'
 
 // Un único elemento de audio para toda la app (solo hay un reproductor).
 const audio = new Audio()
@@ -63,6 +72,15 @@ function readVolume() {
   }
 }
 
+function readRate() {
+  try {
+    const r = Number(localStorage.getItem(RATE_KEY))
+    return Number.isFinite(r) && r >= 0.5 && r <= 3 ? r : 1
+  } catch {
+    return 1
+  }
+}
+
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Track[]>([])
   const [index, setIndex] = useState(-1)
@@ -73,6 +91,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [volume, setVolumeState] = useState(readVolume)
   const [muted, setMuted] = useState(false)
   const [repeat, setRepeat] = useState<RepeatMode>('off')
+  const [rate, setRateState] = useState(readRate)
   const [progress, setProgress] = useState<Progress>({ currentTime: 0, duration: 0 })
 
   const ytHost = useRef<HTMLDivElement | null>(null)
@@ -80,9 +99,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const loadToken = useRef(0)
 
   // Referencia siempre actualizada para callbacks de eventos (ended, Media Session, YouTube).
-  const live = useRef({ queue, index, repeat, engine, currentTime: 0, volume, muted })
+  const live = useRef({ queue, index, repeat, engine, currentTime: 0, duration: 0, volume, muted, rate })
   useLayoutEffect(() => {
-    live.current = { queue, index, repeat, engine, currentTime: progress.currentTime, volume, muted }
+    live.current = {
+      queue,
+      index,
+      repeat,
+      engine,
+      currentTime: progress.currentTime,
+      duration: progress.duration,
+      volume,
+      muted,
+      rate,
+    }
   })
 
   const current = index >= 0 ? queue[index] ?? null : null
@@ -139,16 +168,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       try {
         let playable = track
         if (!track.id) {
-          try {
-            const { track: resolved } = await api.resolve(track)
-            // Conservamos la portada y metadatos del catálogo, que son más limpios que los de la fuente.
-            playable = { ...resolved, ...track, id: resolved.id, source: resolved.source }
-          } catch (error) {
-            // Sin fuente completa: mejor 30 s de vista previa de Deezer que silencio.
-            const noSource = error instanceof ApiError && error.code === 'SOURCE_NOT_FOUND'
-            if (!noSource || !track.catalogId?.startsWith('dz_')) throw error
-            playable = { ...track, id: track.catalogId }
-          }
+          playable = await resolvePlayable(track)
           if (token !== loadToken.current) return
           setQueue(q => q.map((t, i) => (i === at && t === track ? playable : t)))
         }
@@ -175,7 +195,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           yt.loadVideoById(info.videoId)
         } else {
           setEngine('audio')
-          audio.src = absoluteUrl(info.url)
+          // `load()` devuelve la velocidad a la predeterminada: la fijamos en ambas.
+          const speed = isPodcast(playable) ? live.current.rate : 1
+          audio.defaultPlaybackRate = speed
+          audio.playbackRate = speed
+          // Los episodios se retoman donde se dejaron (fragmento de medios `#t=`).
+          const resumeAt = isPodcast(playable) ? episodeProgress.resumeAt(playable.id!) : 0
+          audio.src = absoluteUrl(info.url) + (resumeAt ? `#t=${resumeAt}` : '')
           await audio.play()
         }
       } catch (error) {
@@ -269,6 +295,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(id)
   }, [engine, status])
 
+  // La velocidad solo afecta a los podcasts; se recuerda entre sesiones.
+  const currentIsPodcast = isPodcast(current)
+  useEffect(() => {
+    const speed = currentIsPodcast ? rate : 1
+    audio.defaultPlaybackRate = speed
+    audio.playbackRate = speed
+    try {
+      localStorage.setItem(RATE_KEY, String(rate))
+    } catch {
+      /* sin almacenamiento */
+    }
+  }, [rate, currentIsPodcast])
+
   // Volumen sincronizado con ambos motores y recordado entre sesiones.
   useEffect(() => {
     audio.volume = volume
@@ -339,6 +378,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         if (i < 0) return playIndex([track], 0)
         setQueue([...q, track])
       },
+      replaceUpcoming: tracks => {
+        const { queue: q, index: i } = live.current
+        if (i < 0) return playIndex(tracks, 0)
+        setQueue([...q.slice(0, i + 1), ...tracks])
+      },
       removeFromQueue: at => {
         const { index: i } = live.current
         if (at === i) return
@@ -356,6 +400,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       },
       toggleMute: () => setMuted(m => !m),
       cycleRepeat: () => setRepeat(r => (r === 'off' ? 'all' : r === 'all' ? 'one' : 'off')),
+      setRate: r => setRateState(Math.min(3, Math.max(0.5, r))),
+      skipBy: seconds => {
+        const { currentTime, duration: d } = live.current
+        seek(Math.min(Math.max(0, currentTime + seconds), d > 0 ? d - 1 : Infinity))
+      },
       registerYouTubeHost: el => {
         ytHost.current = el
       },
@@ -364,8 +413,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   )
 
   const state = useMemo<PlayerState>(
-    () => ({ queue, index, current, playId, status, engine, isPreview, volume, muted, repeat }),
-    [queue, index, current, playId, status, engine, isPreview, volume, muted, repeat],
+    () => ({ queue, index, current, playId, status, engine, isPreview, volume, muted, repeat, rate }),
+    [queue, index, current, playId, status, engine, isPreview, volume, muted, repeat, rate],
   )
 
   return (

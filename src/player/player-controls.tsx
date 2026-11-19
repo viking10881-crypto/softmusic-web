@@ -4,6 +4,8 @@ import {
   PlayIcon,
   Repeat1Icon,
   RepeatIcon,
+  RotateCcwIcon,
+  RotateCwIcon,
   SkipBackIcon,
   SkipForwardIcon,
   Volume1Icon,
@@ -17,6 +19,7 @@ import { Kbd } from '@/components/ui/kbd'
 import { Slider } from '@/components/ui/slider'
 import { Toggle } from '@/components/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { isPodcast } from '@/lib/api'
 import { formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { usePlayer, usePlayerActions, usePlayerProgress } from '@/player/player-provider'
@@ -60,25 +63,80 @@ export function PlayPauseButton({ size = 'icon-lg', className }: { size?: 'icon'
   )
 }
 
+/** Salto de unos segundos para podcasts, con el número dentro del icono circular. */
+function SkipButton({ seconds, large }: { seconds: number; large: boolean }) {
+  const { current } = usePlayer()
+  const { skipBy } = usePlayerActions()
+  const back = seconds < 0
+  const Icon = back ? RotateCcwIcon : RotateCwIcon
+  const label = back ? `Retroceder ${-seconds} segundos` : `Avanzar ${seconds} segundos`
+  return (
+    <WithTip label={label}>
+      <Button
+        variant="ghost"
+        size={large ? 'icon-lg' : 'icon'}
+        aria-label={label}
+        disabled={!current}
+        onClick={() => skipBy(seconds)}
+        className="relative text-muted-foreground hover:text-foreground"
+      >
+        <Icon className={large ? 'size-8!' : 'size-6!'} strokeWidth={1.5} />
+        <span className={cn('absolute font-semibold tabular-nums', large ? 'text-[10px]' : 'text-[8px]')} aria-hidden>
+          {Math.abs(seconds)}
+        </span>
+      </Button>
+    </WithTip>
+  )
+}
+
+const RATES = [1, 1.25, 1.5, 1.75, 2, 0.75]
+
+/** Velocidad de los podcasts: cada toque pasa a la siguiente. */
+export function SpeedButton({ className }: { className?: string }) {
+  const { current, rate } = usePlayer()
+  const { setRate } = usePlayerActions()
+  if (!isPodcast(current)) return null
+  const nextRate = RATES[(RATES.indexOf(rate) + 1) % RATES.length] ?? 1
+  const shown = `${rate.toLocaleString('es')}×`
+  return (
+    <WithTip label="Velocidad de reproducción">
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={`Velocidad ${shown}. Cambiar a ${nextRate.toLocaleString('es')}×`}
+        onClick={() => setRate(nextRate)}
+        className={cn('min-w-12 font-mono tabular-nums', rate !== 1 && 'text-primary', className)}
+      >
+        {shown}
+      </Button>
+    </WithTip>
+  )
+}
+
 export function TransportControls({ large = false }: { large?: boolean }) {
   const { current, repeat, queue, index } = usePlayer()
   const { previous, next, cycleRepeat } = usePlayerActions()
+  const podcast = isPodcast(current)
   const iconSize = large ? 'size-6' : undefined
   const repeatLabel = repeat === 'off' ? 'Repetir' : repeat === 'all' ? 'Repetir todo' : 'Repetir una'
 
   return (
     <div className={cn('flex items-center justify-center', large ? 'gap-6' : 'gap-2')}>
-      <WithTip label={repeatLabel}>
-        <Toggle
-          size="sm"
-          aria-label={repeatLabel}
-          pressed={repeat !== 'off'}
-          onPressedChange={cycleRepeat}
-          className="text-muted-foreground data-[state=on]:bg-transparent data-[state=on]:text-primary"
-        >
-          {repeat === 'one' ? <Repeat1Icon /> : <RepeatIcon />}
-        </Toggle>
-      </WithTip>
+      {podcast ? (
+        <SkipButton seconds={-15} large={large} />
+      ) : (
+        <WithTip label={repeatLabel}>
+          <Toggle
+            size="sm"
+            aria-label={repeatLabel}
+            pressed={repeat !== 'off'}
+            onPressedChange={cycleRepeat}
+            className="text-muted-foreground data-[state=on]:bg-transparent data-[state=on]:text-primary"
+          >
+            {repeat === 'one' ? <Repeat1Icon /> : <RepeatIcon />}
+          </Toggle>
+        </WithTip>
+      )}
       <WithTip label="Anterior" shortcut="⇧ ←">
         <Button variant="ghost" size="icon" aria-label="Anterior" disabled={!current} onClick={previous}>
           <SkipBackIcon className={cn('fill-current', iconSize)} />
@@ -96,8 +154,8 @@ export function TransportControls({ large = false }: { large?: boolean }) {
           <SkipForwardIcon className={cn('fill-current', iconSize)} />
         </Button>
       </WithTip>
-      {/* Hueco simétrico al botón de repetir para que el play quede centrado. */}
-      <span className="w-8" aria-hidden />
+      {/* En música, hueco simétrico al botón de repetir para que el play quede centrado. */}
+      {podcast ? <SkipButton seconds={30} large={large} /> : <span className="w-8" aria-hidden />}
     </div>
   )
 }
@@ -115,7 +173,7 @@ export function SeekBar({ className }: { className?: string }) {
     <div className={cn('flex w-full items-center gap-2', className)}>
       <span className="w-10 text-right font-mono text-[11px] text-muted-foreground tabular-nums">{formatTime(value)}</span>
       <Slider
-        aria-label="Progreso de la canción"
+        aria-label={isPodcast(current) ? 'Progreso del episodio' : 'Progreso de la canción'}
         min={0}
         max={Math.max(total, 1)}
         step={1}

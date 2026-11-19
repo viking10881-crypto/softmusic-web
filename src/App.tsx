@@ -7,10 +7,14 @@ import { AppShell } from '@/components/app-shell'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { recentTracks } from '@/lib/local-store'
+import { LibraryProvider } from '@/library/library-provider'
 import { HomePage } from '@/pages/home-page'
+import { LibraryPage, LikedPage, PlaylistPage } from '@/pages/library-pages'
+import { PodcastPage, PodcastsPage } from '@/pages/podcast-pages'
 import { SearchPage } from '@/pages/search-page'
 import { PlayerProvider, usePlayer } from '@/player/player-provider'
 import { usePlayHistory } from '@/player/use-play-history'
+import { usePodcastProgressSaver } from '@/podcasts/progress'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +32,7 @@ function RecentTracker() {
     if (current?.id && status === 'playing') recentTracks.push(current)
   }, [current, status])
   usePlayHistory()
+  usePodcastProgressSaver()
   return null
 }
 
@@ -37,17 +42,24 @@ export default function App() {
       <BrowserRouter>
         <AuthProvider>
           <PlayerProvider>
-            <TooltipProvider delayDuration={400}>
-              <RecentTracker />
-              <AppShell>
-                <Routes>
-                  <Route path="/" element={<HomePage />} />
-                  <Route path="/buscar" element={<SearchPage />} />
-                  <Route path="*" element={<HomePage />} />
-                </Routes>
-              </AppShell>
-              <Toaster position="top-center" />
-            </TooltipProvider>
+            <LibraryProvider>
+              <TooltipProvider delayDuration={400}>
+                <RecentTracker />
+                <AppShell>
+                  <Routes>
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/buscar" element={<SearchPage />} />
+                    <Route path="/podcasts" element={<PodcastsPage />} />
+                    <Route path="/podcast/:id" element={<PodcastPage />} />
+                    <Route path="/biblioteca" element={<LibraryPage />} />
+                    <Route path="/me-gusta" element={<LikedPage />} />
+                    <Route path="/playlist/:id" element={<PlaylistPage />} />
+                    <Route path="*" element={<HomePage />} />
+                  </Routes>
+                </AppShell>
+                <Toaster position="top-center" />
+              </TooltipProvider>
+            </LibraryProvider>
           </PlayerProvider>
         </AuthProvider>
       </BrowserRouter>

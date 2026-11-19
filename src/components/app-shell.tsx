@@ -1,4 +1,4 @@
-import { AudioLinesIcon, HouseIcon, LogOutIcon, SearchIcon, type LucideIcon } from 'lucide-react'
+import { AudioLinesIcon, HouseIcon, LibraryIcon, LogOutIcon, MicIcon, SearchIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink } from 'react-router'
 
@@ -19,6 +19,8 @@ import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { Skeleton } from '@/components/ui/skeleton'
 import { initials } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { LibraryList } from '@/library/collection'
+import { AddToPlaylistDialog } from '@/library/playlist-dialogs'
 import { PlayerBar } from '@/player/player-bar'
 import { usePlayerActions } from '@/player/player-provider'
 import { YouTubeDock } from '@/player/youtube-dock'
@@ -61,7 +63,11 @@ function useShortcuts(openSearch: () => void) {
 const NAV: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/', label: 'Inicio', icon: HouseIcon },
   { to: '/buscar', label: 'Buscar', icon: SearchIcon },
+  { to: '/podcasts', label: 'Podcasts', icon: MicIcon },
 ]
+
+// En móvil no hay barra lateral: la biblioteca tiene su propia pestaña.
+const MOBILE_NAV = [...NAV, { to: '/biblioteca', label: 'Biblioteca', icon: LibraryIcon }]
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false)
@@ -88,6 +94,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <YouTubeDock />
       <SearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
       <AuthDialog />
+      <AddToPlaylistDialog />
     </div>
   )
 }
@@ -137,9 +144,10 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
           </NavLink>
         ))}
       </nav>
-      <div className="mt-auto">
-        <AccountMenu />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <LibraryList compact />
       </div>
+      <AccountMenu />
     </aside>
   )
 }
@@ -203,8 +211,8 @@ export function MobileHeader() {
 
 function MobileNav() {
   return (
-    <nav aria-label="Principal" className="grid h-14 grid-cols-2 border-t bg-sidebar md:hidden">
-      {NAV.map(({ to, label, icon: Icon }) => (
+    <nav aria-label="Principal" className="grid h-14 grid-cols-4 border-t bg-sidebar md:hidden">
+      {MOBILE_NAV.map(({ to, label, icon: Icon }) => (
         <NavLink
           key={to}
           to={to}

@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { useAuth } from '@/auth/auth-provider'
-import { api, type Track } from '@/lib/api'
+import { api, isPodcast, type Track } from '@/lib/api'
 import { usePlayer, usePlayerProgress } from '@/player/player-provider'
 
 /** Segundos de escucha real antes de registrar la reproducción: así los saltos rápidos no cuentan como gusto. */
@@ -59,7 +59,8 @@ export function usePlayHistory() {
     if (sameTrack) return
     if (prev) sync(prev)
     session.current =
-      user && current?.id
+      // Los podcasts no van al historial: mezclarían nombres de programas con los artistas que te gustan.
+      user && current?.id && !isPodcast(current)
         ? {
             playId,
             track: current,

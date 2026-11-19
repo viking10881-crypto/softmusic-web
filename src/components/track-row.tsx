@@ -1,4 +1,16 @@
-import { ListPlusIcon, ListStartIcon, MoreHorizontalIcon, PlayIcon, UserSearchIcon, type LucideIcon } from 'lucide-react'
+import {
+  HeartIcon,
+  HeartOffIcon,
+  ListMusicIcon,
+  ListPlusIcon,
+  ListStartIcon,
+  MoreHorizontalIcon,
+  PlayIcon,
+  RadioIcon,
+  Trash2Icon,
+  UserSearchIcon,
+  type LucideIcon,
+} from 'lucide-react'
 import type { ComponentType, KeyboardEvent, ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
@@ -24,6 +36,8 @@ import {
 import { trackKey, type Track } from '@/lib/api'
 import { formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { LikeButton } from '@/library/like-button'
+import { useLibrary } from '@/library/library-provider'
 import { usePlayer, usePlayerActions } from '@/player/player-provider'
 
 interface TrackRowProps {
@@ -32,9 +46,12 @@ interface TrackRowProps {
   /** Lista completa: al tocar una fila se reproduce desde ahí y el resto queda en cola. */
   list: Track[]
   showAlbum?: boolean
+  /** Si se indica, el menú ofrece quitar la canción de la lista (playlists). */
+  onRemove?: () => void
+  removeLabel?: string
 }
 
-export function TrackRow({ track, position, list, showAlbum = true }: TrackRowProps) {
+export function TrackRow({ track, position, list, showAlbum = true, onRemove, removeLabel }: TrackRowProps) {
   const { current, status } = usePlayer()
   const { playQueue, toggle } = usePlayerActions()
   const isCurrent = current != null && trackKey(current) === trackKey(track)
@@ -94,6 +111,10 @@ export function TrackRow({ track, position, list, showAlbum = true }: TrackRowPr
           {showAlbum && <p className="hidden truncate text-sm text-muted-foreground md:block">{track.album}</p>}
 
           <div className="flex items-center gap-1">
+            <LikeButton
+              track={track}
+              className="md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:aria-pressed:opacity-100"
+            />
             <span className="w-10 text-right font-mono text-xs text-muted-foreground">
               {track.durationStr || formatTime(track.duration ?? 0)}
             </span>
@@ -111,14 +132,28 @@ export function TrackRow({ track, position, list, showAlbum = true }: TrackRowPr
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56" onClick={e => e.stopPropagation()}>
-                <TrackActions track={track} Item={DropdownMenuItem} Separator={DropdownMenuSeparator} onPlay={play} />
+                <TrackActions
+                  track={track}
+                  Item={DropdownMenuItem}
+                  Separator={DropdownMenuSeparator}
+                  onPlay={play}
+                  onRemove={onRemove}
+                  removeLabel={removeLabel}
+                />
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-56">
-        <TrackActions track={track} Item={ContextMenuItem} Separator={ContextMenuSeparator} onPlay={play} />
+        <TrackActions
+          track={track}
+          Item={ContextMenuItem}
+          Separator={ContextMenuSeparator}
+          onPlay={play}
+          onRemove={onRemove}
+          removeLabel={removeLabel}
+        />
       </ContextMenuContent>
     </ContextMenu>
   )
@@ -132,13 +167,19 @@ function TrackActions({
   Item,
   Separator,
   onPlay,
+  onRemove,
+  removeLabel = 'Quitar de esta lista',
 }: {
   track: Track
   Item: MenuItem
   Separator: ComponentType
   onPlay: () => void
+  onRemove?: () => void
+  removeLabel?: string
 }) {
   const { playNext, addToQueue } = usePlayerActions()
+  const { isLiked, toggleLike, pickPlaylistFor, startRadio } = useLibrary()
+  const liked = isLiked(track)
   const navigate = useNavigate()
 
   const action = (Icon: LucideIcon, label: string, run: () => void) => (
@@ -159,6 +200,11 @@ function TrackActions({
         addToQueue(track)
         toast.success('Añadida a la cola', { description: track.title })
       })}
+      <Separator />
+      {action(liked ? HeartOffIcon : HeartIcon, liked ? 'Quitar de Me gusta' : 'Añadir a Me gusta', () => toggleLike(track))}
+      {action(ListMusicIcon, 'Añadir a playlist…', () => pickPlaylistFor(track))}
+      {action(RadioIcon, 'Iniciar radio', () => startRadio(track))}
+      {onRemove && action(Trash2Icon, removeLabel, onRemove)}
       <Separator />
       {action(UserSearchIcon, `Ir a ${track.artist}`, () => navigate(`/buscar?q=${encodeURIComponent(track.artist)}`))}
     </>

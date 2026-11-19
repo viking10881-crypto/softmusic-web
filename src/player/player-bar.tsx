@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
-import { SeekBar, TransportControls, VolumeControl } from '@/player/player-controls'
+import { LikeButton } from '@/library/like-button'
+import { SeekBar, SpeedButton, TransportControls, VolumeControl } from '@/player/player-controls'
 import { usePlayer, usePlayerActions, usePlayerProgress } from '@/player/player-provider'
 import { QueueSheet } from '@/player/queue-sheet'
 
@@ -38,12 +39,14 @@ export function PlayerBar() {
               {isPreview && <PreviewBadge />}
             </p>
           </div>
+          <LikeButton track={current} className="shrink-0" />
         </div>
         <div className="flex flex-col items-center gap-1">
           <TransportControls />
           <SeekBar className="max-w-xl" />
         </div>
         <div className="flex items-center justify-end gap-2">
+          <SpeedButton />
           <QueueSheet />
           <VolumeControl />
         </div>
@@ -64,15 +67,19 @@ export function PlayerBar() {
           </div>
           <div className="flex flex-1 flex-col justify-center gap-8 px-6 pb-10">
             <Artwork src={current.thumbnail} size={1000} alt={`Portada de ${current.title}`} className="aspect-square w-full max-w-sm self-center rounded-xl shadow-2xl" />
-            <div className="min-w-0">
-              <SheetTitle className="truncate text-2xl font-semibold">{current.title}</SheetTitle>
-              <SheetDescription className="flex items-center gap-2 truncate text-base">
-                <span className="truncate">{current.artist}</span>
-                {isPreview && <PreviewBadge />}
-              </SheetDescription>
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <SheetTitle className="truncate text-2xl font-semibold">{current.title}</SheetTitle>
+                <SheetDescription className="flex items-center gap-2 truncate text-base">
+                  <span className="truncate">{current.artist}</span>
+                  {isPreview && <PreviewBadge />}
+                </SheetDescription>
+              </div>
+              <LikeButton track={current} size="icon-lg" className="[&_svg]:size-6" />
             </div>
             <SeekBar />
             <TransportControls large />
+            <SpeedButton className="self-center" />
           </div>
         </SheetContent>
       </Sheet>
