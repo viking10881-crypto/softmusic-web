@@ -1,4 +1,4 @@
-import { HeartIcon } from 'lucide-react'
+import { CirclePlusIcon, HeartIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import type { Track } from '@/lib/api'
@@ -31,6 +31,34 @@ export function LikeButton({
       className={cn(liked ? 'text-primary hover:text-primary' : 'text-muted-foreground', className)}
     >
       <HeartIcon className={cn(liked && 'fill-current')} />
+    </Button>
+  )
+}
+
+/** Abre el selector de playlist para la canción (pensado para el reproductor). */
+export function AddToPlaylistButton({
+  track,
+  size = 'icon-sm',
+  className,
+}: {
+  track: Track
+  size?: 'icon-sm' | 'icon' | 'icon-lg'
+  className?: string
+}) {
+  const { pickPlaylistFor } = useLibrary()
+  return (
+    <Button
+      variant="ghost"
+      size={size}
+      title="Añadir a playlist"
+      aria-label={`Añadir ${track.title} a una playlist`}
+      onClick={e => {
+        e.stopPropagation()
+        pickPlaylistFor(track)
+      }}
+      className={cn('text-muted-foreground', className)}
+    >
+      <CirclePlusIcon />
     </Button>
   )
 }

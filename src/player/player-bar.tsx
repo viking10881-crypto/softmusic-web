@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
-import { LikeButton } from '@/library/like-button'
+import { AddToPlaylistButton, LikeButton } from '@/library/like-button'
 import { SeekBar, SpeedButton, TransportControls, VolumeControl } from '@/player/player-controls'
 import { usePlayer, usePlayerActions, usePlayerProgress } from '@/player/player-provider'
 import { QueueSheet } from '@/player/queue-sheet'
@@ -40,6 +40,7 @@ export function PlayerBar() {
             </p>
           </div>
           <LikeButton track={current} className="shrink-0" />
+          <AddToPlaylistButton track={current} className="shrink-0" />
         </div>
         <div className="flex flex-col items-center gap-1">
           <TransportControls />
@@ -75,6 +76,7 @@ export function PlayerBar() {
                   {isPreview && <PreviewBadge />}
                 </SheetDescription>
               </div>
+              <AddToPlaylistButton track={current} size="icon-lg" className="[&_svg]:size-6" />
               <LikeButton track={current} size="icon-lg" className="[&_svg]:size-6" />
             </div>
             <SeekBar />
