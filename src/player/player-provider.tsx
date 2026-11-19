@@ -12,6 +12,8 @@ interface PlayerState {
   queue: Track[]
   index: number
   current: Track | null
+  /** Cambia en cada reproducción nueva (también al repetir la misma canción). */
+  playId: number
   status: PlayerStatus
   engine: Engine
   isPreview: boolean
@@ -65,6 +67,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Track[]>([])
   const [index, setIndex] = useState(-1)
   const [status, setStatus] = useState<PlayerStatus>('idle')
+  const [playId, setPlayId] = useState(0)
   const [engine, setEngine] = useState<Engine>(null)
   const [isPreview, setIsPreview] = useState(false)
   const [volume, setVolumeState] = useState(readVolume)
@@ -128,6 +131,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const token = ++loadToken.current
       const track = list[at]
       if (!track) return
+      setPlayId(token)
       stopEngines()
       setProgress({ currentTime: 0, duration: track.duration ?? 0 })
       setStatus('loading')
@@ -214,6 +218,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     handlers.current.ended = () => {
       const { queue: q, index: i, repeat: r } = live.current
       if (r === 'one') {
+        setPlayId(++loadToken.current)
         seek(0)
         if (live.current.engine === 'youtube') ytPlayer.current?.then(p => p.playVideo())
         else void audio.play()
@@ -359,8 +364,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   )
 
   const state = useMemo<PlayerState>(
-    () => ({ queue, index, current, status, engine, isPreview, volume, muted, repeat }),
-    [queue, index, current, status, engine, isPreview, volume, muted, repeat],
+    () => ({ queue, index, current, playId, status, engine, isPreview, volume, muted, repeat }),
+    [queue, index, current, playId, status, engine, isPreview, volume, muted, repeat],
   )
 
   return (

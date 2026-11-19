@@ -10,6 +10,7 @@ import { recentTracks } from '@/lib/local-store'
 import { HomePage } from '@/pages/home-page'
 import { SearchPage } from '@/pages/search-page'
 import { PlayerProvider, usePlayer } from '@/player/player-provider'
+import { usePlayHistory } from '@/player/use-play-history'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -17,12 +18,16 @@ const queryClient = new QueryClient({
   },
 })
 
-/** Guarda en "Escuchado recientemente" cada canción que llega a sonar de verdad. */
+/**
+ * Guarda en "Escuchado recientemente" cada canción que llega a sonar de verdad y, con sesión iniciada,
+ * la registra en el historial de la API para las recomendaciones.
+ */
 function RecentTracker() {
   const { current, status } = usePlayer()
   useEffect(() => {
     if (current?.id && status === 'playing') recentTracks.push(current)
   }, [current, status])
+  usePlayHistory()
   return null
 }
 

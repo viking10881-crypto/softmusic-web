@@ -130,6 +130,26 @@ export const api = {
 
   me: () => request<{ user: User }>('/api/auth/me'),
 
+  /** Registra que una canción empezó a sonar; devuelve el id del evento para ir actualizándolo. */
+  addHistory: (track: Track) =>
+    request<{ historyId: number }>('/api/history', {
+      method: 'POST',
+      body: JSON.stringify({
+        track_id: track.id,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        thumbnail: track.thumbnail,
+        source: track.source,
+        duration: track.duration,
+        context_type: 'web',
+      }),
+    }),
+
+  /** `keepalive` permite que la petición termine aunque se esté cerrando la pestaña. */
+  updateHistory: (historyId: number, data: { progress_ms: number; listened_ms: number; completed: boolean }) =>
+    request<unknown>(`/api/history/${historyId}`, { method: 'PATCH', body: JSON.stringify(data), keepalive: true }),
+
   recommendations: () => request<{ recommendations: Track[]; basedOn: string[] }>('/api/recommendations?limit=20'),
 }
 
